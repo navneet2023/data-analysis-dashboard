@@ -109,7 +109,7 @@ st.title("Advanced Fuzzy Matching Dashboard")
 uploaded_df1 = st.file_uploader("Upload First Dataset (CSV/Excel)", type=["csv", "xls", "xlsx"])
 uploaded_df2 = st.file_uploader("Upload Second Dataset (CSV/Excel)", type=["csv", "xls", "xlsx"])
 
-category = st.selectbox("Choose Matching Category", ["D2D vs Enrolment", "D2D vs CIOOSG", "D2D vs GKP"])
+category = st.selectbox("Choose Matching Category", ["D2D vs D2D Survey","D2D vs Enrolment", "D2D vs CIOOSG", "D2D vs GKP"])
 
 if uploaded_df1 and uploaded_df2 and st.button("Run Fuzzy Matching"):
     df1 = load_file(uploaded_df1)
@@ -220,3 +220,4 @@ if uploaded_df1 and uploaded_df2 and st.button("Run Fuzzy Matching"):
                 new1.to_csv(buffer, index=False)
                 buffer.seek(0)
                 st.download_button("Download Full Results", buffer, file_name="fuzzy_matching_results.csv", mime="text/csv")
+
