@@ -3,18 +3,18 @@ import pandas as pd
 from thefuzz import fuzz
 import io
 
-# ------------------------
-# Required Columns
-# ------------------------
+# =============================
+# Required columns
+# =============================
 REQUIRED_COLS = [
     "State_name", "District", "Block_Name", "Cluster_Name", "Cluster_Code",
     "Village_Code", "uniqueid", "childname", "fathername",
     "socialcategory", "gender", "age"
 ]
 
-# ------------------------
-# Utility Functions
-# ------------------------
+# =============================
+# Helper functions
+# =============================
 def remove_double_letters(p_word):
     return "".join([p_word[i] for i in range(len(p_word)) if i == len(p_word) - 1 or p_word[i] != p_word[i + 1]])
 
@@ -30,7 +30,6 @@ def replace_m_before_consonant(p_word):
 def fix_transliterations_level_1(p_word):
     if not isinstance(p_word, str): return ""
     v_word_upd = p_word.upper()
-
     v_word_upd = v_word_upd.replace('MOHAMMADA', 'MO').replace('MOHAMMAD', 'MO')
     v_word_upd = v_word_upd.replace("SIMHA", "SINGH")
     if "SINGH" not in v_word_upd:
@@ -39,57 +38,42 @@ def fix_transliterations_level_1(p_word):
         v_word_upd = v_word_upd.replace("DEVI", "")
     if v_word_upd not in ("BANO", "BANU"):
         v_word_upd = v_word_upd.replace("BANO", "").replace("BANU", "")
-    
     v_word_upd = v_word_upd.replace("JJ", "GY").replace("CHH", "CH").replace("EE", "I")
     v_word_upd = v_word_upd.replace("OO", "U").replace("AI", "E").replace("AU", "O")
     v_word_upd = v_word_upd.replace("OU", "O").replace("EO", "EV").replace("PH", "F")
     v_word_upd = v_word_upd.replace("W", "V").replace("J", "Z").replace("SH", "S")
     v_word_upd = v_word_upd.replace("CA", "CHA").replace("KSH", "X").replace("KS", "X")
     v_word_upd = v_word_upd.replace("AY", "E")
-
     v_word_upd = remove_double_letters(v_word_upd)
     v_word_upd = replace_m_before_consonant(v_word_upd)
-
     return v_word_upd
 
 def soundex(p_word):
     if not p_word or not isinstance(p_word, str):
         return None
-
     p_word = p_word.lower()
     v_letters = [char for char in p_word if char.isalpha()]
     if not v_letters:
         return None
-
     v_first_letter = v_letters[0]
     v_letters = [char for char in v_letters[1:] if char not in 'aeiouyhw']
-
     mapping = {
         'b': '1', 'f': '1', 'p': '1', 'v': '1',
         'c': '2', 'g': '2', 'j': '2', 'k': '2', 'q': '2', 's': '2', 'x': '2', 'z': '2',
-        'd': '3', 't': '3',
-        'l': '4',
-        'm': '5', 'n': '5',
-        'r': '6'
+        'd': '3', 't': '3', 'l': '4',
+        'm': '5', 'n': '5', 'r': '6'
     }
-
     encoded = [mapping.get(c, '') for c in v_letters]
-
-    # Remove consecutive duplicates
     filtered = []
     for ch in encoded:
         if not filtered or ch != filtered[-1]:
             filtered.append(ch)
-
-    # Remove if first letter's code matches first digit
     first_digit = mapping.get(v_first_letter, '')
     if filtered and filtered[0] == first_digit:
         filtered = filtered[1:]
-
     filtered = filtered[:3]
     while len(filtered) < 3:
         filtered.append('0')
-
     return v_first_letter.upper() + ''.join(filtered)
 
 def load_file(uploaded_file):
@@ -101,9 +85,9 @@ def load_file(uploaded_file):
     else:
         return None
 
-# ------------------------
-# Streamlit App
-# ------------------------
+# =============================
+# Streamlit UI
+# =============================
 st.title("Advanced Fuzzy Matching Dashboard")
 
 uploaded_df1 = st.file_uploader("Upload First Dataset (CSV/Excel)", type=["csv", "xls", "xlsx"])
@@ -112,8 +96,7 @@ uploaded_df2 = st.file_uploader("Upload Second Dataset (CSV/Excel)", type=["csv"
 category = st.selectbox("Choose Matching Category", ["D2D vs D2D Survey","D2D vs Enrolment", "D2D vs CIOOSG", "D2D vs GKP"])
 
 if uploaded_df1 and uploaded_df2 and st.button("Run Fuzzy Matching"):
-    df1 = load_file(uploaded_df1)
-    df2 = load_file(uploaded_df2)
+    df1, df2 = load_file(uploaded_df1), load_file(uploaded_df2)
 
     if df1 is None or df2 is None:
         st.error("❌ Unsupported file type! Please upload CSV or Excel only.")
@@ -121,28 +104,27 @@ if uploaded_df1 and uploaded_df2 and st.button("Run Fuzzy Matching"):
         # Column check
         missing1 = [c for c in REQUIRED_COLS if c not in df1.columns]
         missing2 = [c for c in REQUIRED_COLS if c not in df2.columns]
-
         if missing1:
             st.error(f"❌ First dataset is missing columns: {missing1}")
         elif missing2:
             st.error(f"❌ Second dataset is missing columns: {missing2}")
         else:
-            df1 = df1.fillna("")
-            df2 = df2.fillna("")
-
-            # Merge on Village_Code
+            df1, df2 = df1.fillna(""), df2.fillna("")
             new1 = df1.merge(df2, on="Village_Code", suffixes=("_old1", "_new1"))
+
             if new1.empty:
                 st.warning("⚠️ No records matched on Village_Code between the two datasets.")
             else:
-                # === Your Exact Scoring Logic ===
+                # --------------------
+                # Fuzzy Scoring
+                # --------------------
                 new1.fillna('', inplace=True)
                 a = len(new1)
                 scores = [0]*a
                 childname_score, fathername_score, age_score, gender_score, soc_cat_score = [0]*a, [0]*a, [0]*a, [0]*a, [0]*a
 
                 for i in new1.index:
-                    # Childname logic
+                    # Childname
                     if any([
                         soundex(new1['childname_old1'][i]) == soundex(new1['childname_new1'][i]),
                         soundex(new1['childname_old1'][i].replace(" ", "")) == soundex(new1['childname_new1'][i].replace(" ", "")),
@@ -168,7 +150,7 @@ if uploaded_df1 and uploaded_df2 and st.button("Run Fuzzy Matching"):
                         scores[i] += 200
                         gender_score[i] += 200
 
-                    # Fathername logic
+                    # Fathername
                     if any([
                         soundex(new1['fathername_old1'][i]) == soundex(new1['fathername_new1'][i]),
                         soundex(new1['fathername_old1'][i].replace(" ", "")) == soundex(new1['fathername_new1'][i].replace(" ", "")),
@@ -203,7 +185,7 @@ if uploaded_df1 and uploaded_df2 and st.button("Run Fuzzy Matching"):
                         scores[i] += 110
                         soc_cat_score[i] += 110
 
-                # Final DataFrame
+                # Add columns
                 new1["childname_score"] = childname_score
                 new1["fathername_score"] = fathername_score
                 new1["gender_score"] = gender_score
@@ -211,13 +193,29 @@ if uploaded_df1 and uploaded_df2 and st.button("Run Fuzzy Matching"):
                 new1["soc_cat_score"] = soc_cat_score
                 new1["total_score"] = scores
 
-                # Show results
+                # Best matches
+                best_matches = new1.loc[new1.groupby('uniqueid_new1')['total_score'].idxmax()].reset_index(drop=True)
+
+                # --------------------
+                # Show Results
+                # --------------------
                 st.success("✅ Fuzzy Matching Completed")
+
+                st.write("### Best Matches (one per uniqueid_new1)")
+                st.dataframe(best_matches.sort_values("total_score", ascending=False).head(50))
+
+                st.write("### All Matches (Top 50)")
                 st.dataframe(new1.sort_values("total_score", ascending=False).head(50))
 
-                # Download results
-                buffer = io.BytesIO()
-                new1.to_csv(buffer, index=False)
-                buffer.seek(0)
-                st.download_button("Download Full Results", buffer, file_name="fuzzy_matching_results.csv", mime="text/csv")
+                # --------------------
+                # Downloads
+                # --------------------
+                buf1 = io.BytesIO()
+                best_matches.to_csv(buf1, index=False)
+                buf1.seek(0)
+                st.download_button("⬇ Download Best Matches", buf1, file_name="fuzzy_best_matches.csv", mime="text/csv")
 
+                buf2 = io.BytesIO()
+                new1.to_csv(buf2, index=False)
+                buf2.seek(0)
+                st.download_button("⬇ Download All Matches", buf2, file_name="fuzzy_all_matches.csv", mime="text/csv")
